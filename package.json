@@ -8,6 +8,14 @@
   },
   "author": "aswin.bouwmeester@gmail.com",
   "license": "ISC",
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/Asw1n/advancedwind.git"
+    },
+    "bugs": {
+      "url": "https://github.com/Asw1n/advancedwind/issues"
+    },
+    "homepage": "https://github.com/Asw1n/advancedwind#readme",
   "keywords": [
     "signalk-node-server-plugin",
     "signalk-category-utility"
