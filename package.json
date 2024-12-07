@@ -1,5 +1,5 @@
 {
-  "name": "polarwind",
+  "name": "advancedwind",
   "version": "1.0.0",
   "description": "A plugin that calculates true wind (speed and angle) optionally correcting for vessel motion, upwash, leeway and mast height.",
   "main": "index.js",
