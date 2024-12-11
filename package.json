@@ -1,7 +1,7 @@
 {
   "name": "advancedwind",
-  "version": "1.0.0",
-  "description": "A plugin that calculates true wind (speed and angle) optionally correcting for vessel motion, upwash, leeway and mast height.",
+  "version": "1.1.0",
+  "description": "A plugin that calculates true wind and ground wind optionally correcting for vessel motion, upwash, leeway and mast height.",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -17,6 +17,7 @@
     },
     "homepage": "https://github.com/Asw1n/advancedwind#readme",
   "keywords": [
+    "signalk-webapp",
     "signalk-node-server-plugin",
     "signalk-category-utility"
   ],
