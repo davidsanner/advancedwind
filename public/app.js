@@ -1,5 +1,9 @@
 const API_BASE_URL = "/plugins/advancedwind"; // Adjust based on your server configuration
 
+let updateInterval = 1000;
+let updateTimer;
+let updatesPaused = false;
+
 async function getFromServer(endpoint) {
   try {
     const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
@@ -43,7 +47,7 @@ function updateOptions(data) {
   optionsContent.appendChild(table);
 }
 
-function updateSteps(data) {
+function updateWind(data) {
   const stepsList = document.getElementById('steps-list');
   stepsList.innerHTML = ''; // Clear previous steps
 
@@ -52,74 +56,87 @@ function updateSteps(data) {
   headerRow.innerHTML = '<th>Label</th><th>Speed (m/s)</th><th>Angle (°)</th>';
   table.appendChild(headerRow);
 
-  data.steps.forEach(step => {
+  data.windSteps.forEach(step => {
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${step.label}</td><td>${step.speed.toFixed(2)}</td><td>${step.angle.toFixed(2)}</td>`;
+    row.innerHTML = `<td>${step.label}</td><td>${step.speed.toFixed(1)}</td><td>${step.angle.toFixed(0)}</td>`;
     table.appendChild(row);
   });
 
   stepsList.appendChild(table);
 }
 
-function updateSpeeds(data) {
-  const speedsContainer = document.getElementById('speeds-container');
-  speedsContainer.innerHTML = ''; // Clear previous speeds
+function updateSpeed(data) {
+  const stepsList = document.getElementById('speeds-container');
+  stepsList.innerHTML = ''; // Clear previous steps
 
   const table = document.createElement('table');
   const headerRow = document.createElement('tr');
-  headerRow.innerHTML = '<th>Type</th><th>Speed (m/s)</th><th>Angle (°)</th>';
+  headerRow.innerHTML = '<th>Label</th><th>Speed (m/s)</th><th>Angle (°)</th>';
   table.appendChild(headerRow);
 
-  const speeds = [
-    { type: 'Speed through water', speed: data.boatSpeed.speed, angle: data.boatSpeed.angle },
-    { type: 'Speed over ground', speed: data.groundSpeed.speed, angle: data.groundSpeed.angle }
-  ];
-
-  speeds.forEach(speedData => {
+  data.boatSteps.forEach(step => {
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${speedData.type}</td><td>${speedData.speed.toFixed(2)}</td><td>${speedData.angle.toFixed(2)}</td>`;
+    row.innerHTML = `<td>${step.label}</td><td>${step.speed.toFixed(1)}</td><td>${step.angle.toFixed(0)}</td>`;
     table.appendChild(row);
   });
 
-  speedsContainer.appendChild(table);
+  stepsList.appendChild(table);
 }
 
 function updateAttitude(data) {
   const attitudeContainer = document.getElementById('attitude-container');
-  attitudeContainer.innerHTML = ''; 
+  attitudeContainer.innerHTML = '';
   const table = document.createElement('table');
   const headerRow = document.createElement('tr');
   headerRow.innerHTML = '<th>Type</th><th>roll</th><th>pitch</th>';
   table.appendChild(headerRow);
 
-  const atts = [
-    { type: 'Attitude (°)', roll: data.attitude.roll, pitch: data.attitude.pitch },
-    { type: 'Rotation (m/s)', roll: data.rotation.roll, pitch: data.rotation.pitch }
-  ];
 
-  atts.forEach(attData => {
+  data.attitudeSteps.forEach(step => {
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${attData.type}</td><td>${attData.roll.toFixed(2)}</td><td>${attData.pitch.toFixed(2)}</td>`;
+    row.innerHTML = `<td>${step.label}</td><td>${step.roll.toFixed(1)}</td><td>${step.pitch.toFixed(0)}</td>`;
     table.appendChild(row);
   });
-
   attitudeContainer.appendChild(table);
 }
-
 
 async function fetchAndUpdateData() {
   const data = await getFromServer('getResults'); // Updated endpoint
   if (data) {
+    console.log(data);
     updateMetadata(data);
     updateOptions(data);
-    updateSteps(data);
-    updateSpeeds(data);
+    updateWind(data);
+    updateSpeed(data);
     updateAttitude(data);
   }
 }
 
-// Periodically fetch data every 5 seconds
-setInterval(fetchAndUpdateData, 1000);
+function startUpdates() {
+  if (updateTimer) clearInterval(updateTimer);
+  updateTimer = setInterval(fetchAndUpdateData, updateInterval);
+}
 
-// Initial fetch to populate the page immediately
+function toggleUpdates() {
+  updatesPaused = !updatesPaused;
+  const toggleButton = document.getElementById('toggle-updates');
+
+  if (updatesPaused) {
+    clearInterval(updateTimer);
+    toggleButton.textContent = "Resume Updates";
+  } else {
+    toggleButton.textContent = "Pause Updates";
+    startUpdates();
+  }
+}
+
+document.getElementById('update-interval').addEventListener('input', (event) => {
+  updateInterval = parseInt(event.target.value, 10) || 1000;
+  if (!updatesPaused) startUpdates();
+});
+
+document.getElementById('toggle-updates').addEventListener('click', toggleUpdates);
+
+// Initial fetch and start updates
 fetchAndUpdateData();
+startUpdates();

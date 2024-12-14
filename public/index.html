@@ -12,8 +12,16 @@
   <div class="container">
     <header>
       <h1>Advanced Wind Data</h1>
-      <p>Last updated: <span id="timestamp">N/A</span></p>
+      
     </header>
+
+    <section class="controls-section">
+      <h2>Controls</h2>
+      <label for="update-interval">Update Interval (ms):</label>
+      <input type="number" id="update-interval" value="1000" min="500">
+      <button id="toggle-updates">Pause Updates</button>
+      <p>Timestamp: <span id="timestamp">N/A</span></p>
+    </section>
 
     <section class="speeds-section">
       <h2>Boat speed</h2>
@@ -29,9 +37,8 @@
       </div>
     </section>
 
-
     <section class="steps-section">
-      <h2>Calculations</h2>
+      <h2>Wind speed</h2>
       <div id="steps-list">
         <!-- Steps table will be populated here -->
       </div>

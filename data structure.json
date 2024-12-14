@@ -1,0 +1,74 @@
+  {
+     timestamp: 2024-12-11T18: 39: 43.552Z,
+     options: {
+       correctForMisalign: false,
+       correctForMastRotation: false,
+       correctForHeight: false,
+       correctForMastMovement: true,
+       correctForMastHeel: true,
+       correctForUpwash: false,
+       correctForLeeway: true,
+       backCalculate: true,
+       calculateGroundWind: true,
+       useSog: false,
+       sensorMisalignment: 30,
+       heightAboveWater: 16,
+       windExponent: 0.14,
+       upwashSlope: 0.05,
+       upwashOffset: 1.5,
+       leewaySpeed: 0.2,
+       leewayAngle: 0.2,
+       timeConstant: 0,
+    },
+     steps: [
+      {
+         label: 'Measured value',
+         speed: 10.219978969505783,
+         angle: 91.7700000209538
+      },
+      {
+         label: 'corrected for mast heel',
+         speed: 10.219978969505783,
+         angle: 91.7700000209538
+      },
+      {
+         label: 'corrected for mast movement',
+         speed: 10.219978969505783,
+         angle: 91.7700000209538
+      },
+      {
+         label: 'corrected for boat speed',
+         speed: 10.670715288335263,
+         angle: 110.7334952274567
+      },
+      {
+         label: 'back calculated to apparent wind',
+         speed: 10.219978969505783,
+         angle: 91.7700000209538
+      },
+      {
+         label: 'dampen true wind',
+         speed: 10.670715288335263,
+         angle: 110.7334952274567
+      },
+      {
+         label: 'dampen apparent wind',
+         speed: 10.219978969505783,
+         angle: 91.7700000209538
+      },
+      {
+         label: 'calculate ground wind',
+         speed: 10.219978969505783,
+         angle: 91.7700000209538
+      },
+      {
+         label: 'dampen ground wind',
+         speed: 10.219978969505783,
+         angle: 91.7700000209538
+      }
+    ],
+     boatSpeed: { speed: 3.469992859509303, angle: 3.890731015859015
+    },
+     groundSpeed: { speed: 0, angle: 0
+    }
+  }

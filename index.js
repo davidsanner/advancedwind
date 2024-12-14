@@ -1,5 +1,5 @@
+// bug in ground wind related to not taken heading into account
 // bug in heel correction
-// bug in display calculations with smoothing >0
 
 module.exports = function (app) {
 
@@ -60,11 +60,6 @@ module.exports = function (app) {
         type: "boolean",
         title: "Calculate ground wind",
         description: "Calculate the wind speed over ground and direction relative to true north."
-      },
-      useSog: {
-        type: "boolean",
-        title: "Use Speed Over Ground (SOG) as boat speed",
-        description: "When calculating true wind, boat speed through water (STW) is subtracted from apparent wind speed. If STW is unreliable, using GPS-based Speed Over Ground (SOG) can be an alternative, but note that currents can affect accuracy."
       },
       sensorMisalignment: {
         type: "number",
@@ -129,18 +124,6 @@ module.exports = function (app) {
         minimum: 0,
         maximum: 10
       },
-      // windInstrumentSource: {
-      //   type: "string",
-      //   title: "Data source for apparent wind",
-      // },
-      // boatSpeedSource: {
-      //   type: "string",
-      //   title: "Data source for boat speed",
-      // },
-      // attitudeSource: {
-      //   type: "string",
-      //   title: "Data source for pitch and roll",
-      // },
     }
   };
 
@@ -248,29 +231,29 @@ module.exports = function (app) {
           // Initialize EMA with the first value
           this.ema = newValue;
           this.lastTime = currentTime;
-          return this.ema;
         }
+        else {
+          // Calculate the time difference
+          const deltaTime = currentTime - this.lastTime;
 
-        // Calculate the time difference
-        const deltaTime = currentTime - this.lastTime;
+          // Compute alpha
+          const alpha = 1 - Math.exp(-deltaTime / this.timeConstant);
 
-        // Compute alpha
-        const alpha = 1 - Math.exp(-deltaTime / this.timeConstant);
+          // Update EMA
+          this.ema.x = this.ema.x + alpha * (newValue.x - this.ema.x);
+          this.ema.y = this.ema.y + alpha * (newValue.y - this.ema.y);
 
-        // Update EMA
-        this.ema.x = this.ema.x + alpha * (newValue.x - this.ema.x);
-        this.ema.y = this.ema.y + alpha * (newValue.y - this.ema.y);
-
-        // Update last time
-        this.lastTime = currentTime;
-
+          // Update last time
+          this.lastTime = currentTime;
+        }
         return Object.assign({}, this.ema);
       }
+
     }
 
-    const dampenedTrueWind = new ExponentialMovingAverage(options.timeConstant);
-    const dampenedApparentWind = new ExponentialMovingAverage(options.timeConstant);
-    const dampenedGroundWind = new ExponentialMovingAverage(options.timeConstant);
+    const smoothTrue = new ExponentialMovingAverage(options.timeConstant);
+    const smoothApparent = new ExponentialMovingAverage(options.timeConstant);
+    const smoothGround = new ExponentialMovingAverage(options.timeConstant);
 
 
 
@@ -287,6 +270,11 @@ module.exports = function (app) {
           policy: "instant",
           //source: options.windInstrumentSource,
         },
+        {
+          path: "navigation.speedThroughWater",
+          policy: "instant",
+          //source: options.boatSpeedSource,
+        }
       ]
     };
     if (options.correctForMastHeel || options.correctForMastMovement) {
@@ -296,13 +284,6 @@ module.exports = function (app) {
         //source: options.attitudeSource,
       });
     }
-    if (!options.useSog) {
-      localSubscription.subscribe.push({
-        path: "navigation.speedThroughWater",
-        policy: "instant",
-        //source: options.boatSpeedSource,
-      });
-    }
     if (options.correctForMastRotation && options.rotationPath !== undefined) {
       localSubscription.subscribe.push({
         path: options.rotationPath,
@@ -310,7 +291,7 @@ module.exports = function (app) {
         // source: options.boatSpeedSource,
       });
     }
-    if (options.calculateGroundWind || options.useSog) {
+    if (options.calculateGroundWind) {
       localSubscription.subscribe.push({
         path: "navigation.speedOverGround",
         policy: "instant",
@@ -358,7 +339,6 @@ module.exports = function (app) {
                   break;
                 case "navigation.speedOverGround":
                   groundSpeed.speed = v.value;
-                  if (options.useSog) boatSpeed.speed = v.value;
                   break;
                 default:
                   if (v.path == options.rotationPath) {
@@ -381,23 +361,32 @@ module.exports = function (app) {
     function processDeltas(timestamp) {
       // delta windspeed serves as a trigger for calculations;
       const calc = initSteps(timestamp);
-      wind = addStep(calc, "Measured value", Object.assign({}, apparentWind));
-      boat = Object.assign({}, boatSpeed);
-      if (options.correctForMisalign) wind = addStep(calc, "corrected for misalignment", rotate1D(wind, (options.sensorMisalignment * Math.PI / 180)));
-      if (options.correctForMastRotation) wind = addStep(calc, "corrected for mast rotation", rotate1D(wind, mast.angle));
-      if (options.correctForUpwash) wind = addStep(calc, "corrected for upwash", correctForUpwash(wind));
-      if (options.correctForMastHeel) wind = addStep(calc, "corrected for mast heel", correctForMastHeel(wind, currentAttitude));
-      if (options.correctForMastMovement) wind = addStep(calc, "corrected for mast movement", correctForMastMovement(wind, calculateRotation(currentAttitude, previousAttitude)));
-      if (options.correctForLeeway) boat = addLeeway(boat, wind, currentAttitude);
-      trueWind = addStep(calc, "corrected for boat speed", substract(wind, boat));
-      if (options.correctForHeight) trueWind = addStep(calc, "normalised to 10 meters", normaliseToTen(trueWind));
-      wind = addStep(calc, "back calculated to apparent wind", add(trueWind, boat)); // back calculate apparent wind
-      sendTrueWind(addStep(calc, "dampen true wind", dampenedTrueWind.update(trueWind, timestamp)));
-      if (options.backCalculate) sendApparentWind(addStep(calc, "dampen apparent wind", dampenedApparentWind.update(wind, timestamp)));
-      if (options.calculateGroundWind) sendGroundWind(addStep(calc, "dampen ground wind", dampenedGroundWind.update(addStep(calc, "calculate ground wind", substract(wind, groundSpeed), timestamp))));
-      addBoat(calc, boat, groundSpeed);
-      addAttitude(calc, currentAttitude, previousAttitude);
-      if (options.correctForLeeway) sendLeeway(boat);
+      wind = addWind(calc, "Measured wind speed", Object.assign({}, apparentWind));
+      boat = addBoat(calc, "Measured boat speed", Object.assign({}, boatSpeed));
+      ground = addBoat(calc, "Measured ground speed", Object.assign({}, groundSpeed));
+      if (options.correctForMisalign)
+        wind = addWind(calc, "correct for misalignment", rotate1D(wind, (options.sensorMisalignment * Math.PI / 180)));
+      if (options.correctForMastRotation)
+        wind = addWind(calc, "correct for mast rotation", rotate1D(wind, mast.angle));
+      if (options.correctForUpwash)
+        wind = addWind(calc, "correct for upwash", correctForUpwash(wind));
+      if (options.correctForMastHeel)
+        wind = addWind(calc, "correct for mast heel", correctForMastHeel(wind, currentAttitude));
+      if (options.correctForMastMovement)
+        wind = addWind(calc, "correct for mast movement", correctForMastMovement(wind, addAtt(calc, "Rotation (m/s)", calculateRotation(addAtt(calc, "Attitude (°)", currentAttitude, "rad"), previousAttitude), "m/s")));
+      if (options.correctForLeeway)
+        boat = addBoat(calc, "correct for leeway", addLeeway(boat, wind, currentAttitude));
+      trueWind = addWind(calc, "calculate true wind", substract(wind, boat));
+      if (options.correctForHeight)
+        trueWind = addWind(calc, "normalise to 10 meters", normaliseToTen(trueWind));
+      appWind = addWind(calc, "back calculate apparent wind", add(trueWind, boat));
+      if (options.calculateGroundWind)
+        groundWind = addWind(calc, "calculate ground wind", substract(appWind, addBoat(calc, "speed over ground", groundSpeed)));
+      sendTrueWind(addWind(calc, "dampen true wind", smoothTrue.update(trueWind, timestamp)));
+      if (options.backCalculate)
+        sendApparentWind(addWind(calc, "dampen apparent wind", smoothApparent.update(appWind, timestamp)));
+      if (options.calculateGroundWind)
+        sendGroundWind(addWind(calc, "dampen ground wind", smoothGround.update(groundWind, timestamp)));
       Object.assign(previousAttitude, currentAttitude);
       Object.assign(lastCalculation, calc);
     }
@@ -532,37 +521,58 @@ module.exports = function (app) {
       return {
         timestamp: timestamp,
         options: options,
-        steps: [
+        windSteps: [
         ],
-        boatSpeed: boatSpeed,
-        groundSpeed: groundSpeed
+        boatSteps: [
+        ],
+        attitudeSteps: [
+        ]
       };
     }
 
-    function addStep(calculations, label, wind) {
-      polar = toPolar(wind);
-      calculations.steps.push(
+    function addWind(calculations, label, speed) {
+      speed = toPolar(speed);
+      calculations.windSteps.push(
         {
           label: label,
-          speed: toKnots(polar.speed),
-          angle: toDegrees(polar.angle)
+          speed: toKnots(speed.speed),
+          angle: toDegrees(speed.angle)
         }
       );
-      return wind;
+      return speed;
     }
 
-    function addBoat(calculations, boat, ground) {
-      boat = toPolar(boat);
-      ground = toPolar(ground);
-      calculations.boatSpeed = { speed: toKnots(boat.speed), angle: toDegrees(boat.angle) };
-      calculations.groundSpeed = { speed: toKnots(ground.speed), angle: toDegrees(ground.angle) };
+    function addBoat(calculations, label, speed) {
+      speed = toPolar(speed);
+      calculations.boatSteps.push(
+        {
+          label: label,
+          speed: toKnots(speed.speed),
+          angle: toDegrees(speed.angle)
+        }
+      );
+      return speed;
     }
 
-    function addAttitude(calculations, att, previous) {
-      const rotation = calculateRotation(att, previous);
-      calculations.attitude = { roll: toDegrees(att.roll), pitch: toDegrees(att.pitch), yaw: toDegrees(att.yaw) };
-      calculations.rotation = { roll: toDegrees(rotation.roll), pitch: toDegrees(rotation.pitch), yaw: toDegrees(rotation.yaw) };
+    function addAtt(calculations, label, att, unit) {
+      if (unit == 'rad') {
+        roll = toDegrees(att.roll);
+        pitch = toDegrees(att.pitch);
+      }
+      else {
+        roll = att.roll;
+        pitch = att.pitch;
+      }
+      calculations.attitudeSteps.push(
+        {
+          label: label,
+          roll: roll,
+          pitch: pitch
+        }
+      );
+      return att;
     }
+
   }
 
 
