@@ -1,4 +1,3 @@
-// bug in ground wind related to not taken heading into account
 // bug in heel correction
 
 module.exports = function (app) {
@@ -11,7 +10,7 @@ module.exports = function (app) {
 
   plugin.id = "AdvancedWind";
   plugin.name = "Advanced Wind";
-  plugin.description = "A plugin that calculates true wind (speed and angle) optionally correcting for vessel motion, upwash, leeway and mast height.";
+  plugin.description = "A plugin that calculates true wind while optionally correcting for vessel motion, upwash, leeway and mast height.";
 
   plugin.schema = {
     type: "object",
@@ -302,6 +301,11 @@ module.exports = function (app) {
         policy: "instant",
         // source: options.boatSpeedSource,
       });
+      localSubscription.subscribe.push({
+        path: "navigation.headingTrue",
+        policy: "instant",
+        // source: options.boatSpeedSource,
+      });
     }
 
     // subscribe to deltas
@@ -339,6 +343,9 @@ module.exports = function (app) {
                   break;
                 case "navigation.speedOverGround":
                   groundSpeed.speed = v.value;
+                  break;
+                case "navigation.headingTrue":
+                  currentAttitude.yaw = v.value;
                   break;
                 default:
                   if (v.path == options.rotationPath) {
@@ -381,7 +388,7 @@ module.exports = function (app) {
         trueWind = addWind(calc, "normalise to 10 meters", normaliseToTen(trueWind));
       appWind = addWind(calc, "back calculate apparent wind", add(trueWind, boat));
       if (options.calculateGroundWind)
-        groundWind = addWind(calc, "calculate ground wind", substract(appWind, addBoat(calc, "speed over ground", groundSpeed)));
+        groundWind = addWind(calc, "calculate ground wind", substract(rotate1D(appWind, currentAttitude.yaw), addBoat(calc, "speed over ground", groundSpeed)));
       sendTrueWind(addWind(calc, "dampen true wind", smoothTrue.update(trueWind, timestamp)));
       if (options.backCalculate)
         sendApparentWind(addWind(calc, "dampen apparent wind", smoothApparent.update(appWind, timestamp)));
@@ -558,16 +565,19 @@ module.exports = function (app) {
       if (unit == 'rad') {
         roll = toDegrees(att.roll);
         pitch = toDegrees(att.pitch);
+        yaw=toDegrees(att.yaw);
       }
       else {
         roll = att.roll;
         pitch = att.pitch;
+        yaw=att.yaw;
       }
       calculations.attitudeSteps.push(
         {
           label: label,
           roll: roll,
-          pitch: pitch
+          pitch: pitch,
+          yaw: yaw
         }
       );
       return att;

@@ -88,13 +88,13 @@ function updateAttitude(data) {
   attitudeContainer.innerHTML = '';
   const table = document.createElement('table');
   const headerRow = document.createElement('tr');
-  headerRow.innerHTML = '<th>Type</th><th>roll</th><th>pitch</th>';
+  headerRow.innerHTML = '<th>Type</th><th>roll</th><th>pitch</th><th>yaw</th>';
   table.appendChild(headerRow);
 
 
   data.attitudeSteps.forEach(step => {
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${step.label}</td><td>${step.roll.toFixed(1)}</td><td>${step.pitch.toFixed(0)}</td>`;
+    row.innerHTML = `<td>${step.label}</td><td>${step.roll.toFixed(1)}</td><td>${step.pitch.toFixed(0)}</td><td>${step.yaw.toFixed(0)}</td>`;
     table.appendChild(row);
   });
   attitudeContainer.appendChild(table);
