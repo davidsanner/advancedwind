@@ -9,6 +9,8 @@ This SignalK plugin calculates true wind and, optionally, also ground wind, back
 - Leeway
 - Sensor heigth
 
+The plugin comes with an app that allows you to inspect the effect of the corrections in real time.
+
 SignalK paths needed:
 - environment.wind.speedApparent
 - environment.wind.angleApparent

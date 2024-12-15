@@ -132,10 +132,12 @@ module.exports = function (app) {
     router.get('/getResults', (req, res) => {
       res.json(lastCalculation);
     });
+    const options = app.readPluginOptions();
+    app.debug(options);
   }
 
 
-  plugin.start = (options, restartPlugin) => {
+  plugin.start = (options) => {
 
 
     app.debug('Plugin started');
@@ -195,26 +197,7 @@ module.exports = function (app) {
       return { speed: p.speed, angle: newAngle };
     }
 
-    function rotate2D(v, R) {
-      return {
-        x: R[0][0] * v.x,
-        y: R[1][0] * v.x + R[1][1] * v.y
-      }
-    }
 
-    function getRotationMatrix(att) {
-      /* const cosRoll = Math.cos(att.roll), sinRoll = Math.sin(att.roll);
-      const cosPitch = Math.cos(att.pitch), sinPitch = Math.sin(att.pitch);
- 
-      const rotationMatrix = [
-        [cosPitch, 0, sinPitch],
-        [sinRoll * sinPitch, cosRoll, -cosPitch * sinRoll],
-        [-cosRoll * sinPitch, sinRoll, cosRoll * cosPitch]
-      ]
-      return rotationMatrix; */
-      return [[Math.cos(att.pitch), 0], [Math.sin(att.roll) * Math.sin(att.pitch), Math.cos(att.roll)]];
-      //return [[Math.cos(att.roll), 0],[-Math.sin(att.roll) * Math.sin(att.pitch), Math.cos(att.pitch)]];
-    }
 
     class ExponentialMovingAverage {
       constructor(timeConstant) {
@@ -408,7 +391,11 @@ module.exports = function (app) {
     // correct for the attitude of the boat and wind sensor
     // bug in TWA
     function correctForMastHeel(wind, attitude) {
-      return rotate2D(toVector(wind), getRotationMatrix(attitude));
+      //return rotate2D(toVector(wind), getRotationMatrix(attitude));
+      wind = toVector(wind);
+      wind.x = wind.x / Math.cos(attitude.pitch);
+      wind.y = wind.y / Math.cos(attitude.roll);
+      return wind;
     }
 
     // correct for rolling and pitching of the boat 
@@ -429,7 +416,6 @@ module.exports = function (app) {
       }
     }
 
-
     // calculate leeway and add to boat speed
     function addLeeway(boat, wind, attitude) {
       boat = toPolar(boat);
@@ -441,7 +427,39 @@ module.exports = function (app) {
       };
     }
 
-
+    function sendMessage(trueWind, appWind, groundWind, boatSpeed) {
+      // not used
+      trueWind = toPolar(trueWind);
+      appWind = toPolar(appWind);
+      groundWind = toPolar(groundWind);
+      boatSpeed = toPolar(boatSpeed);
+      const values = [
+        { path: 'environment.wind.angleTrueWater', value: trueWind.angle },
+        { path: 'environment.wind.speedTrue', value: trueWind.speed },
+      ];
+      if (options.backCalculate) {
+        values.push({ path: 'environment.wind.angleApparent', value: appWind.angle });
+        values.push({ path: 'environment.wind.speedApparent', value: appWind.speed });
+      }
+      if (options.calculateGroundWind) {
+        values.push({ path: 'environment.wind.directionTrue', value: groundWind.angle });
+        values.push({ path: 'environment.wind.speedOverGround', value: groundWind.speed });
+      }
+      if (options.correctForLeeway) {
+        values.push({ path: 'environment.wind.directionTruenavigation.leewayAngle', value: boatSpeed.angle });
+      }
+      const delta = {
+        context: 'vessels.self',
+        updates: [
+          {
+            source: {
+              label: plugin.id
+            },
+            values: values
+          }]
+      };
+      app.handleMessage(plugin.id, delta);
+    }
 
     function sendTrueWind(trueWind) {
       trueWind = toPolar(trueWind);
@@ -456,27 +474,6 @@ module.exports = function (app) {
             values: [
               { path: 'environment.wind.angleTrueWater', value: trueWind.angle },
               { path: 'environment.wind.speedTrue', value: trueWind.speed },
-            ]
-          }]
-      };
-      //app.debug(delta.updates[0]);
-      app.handleMessage(plugin.id, delta);
-    }
-
-    function sendLeeway(boatSpeed) {
-      boatSpeed = toPolar(boatSpeed);
-      boatSpeedVector = toVector(boatSpeed);
-
-      const delta = {
-        context: 'vessels.self',
-        updates: [
-          {
-            source: {
-              label: plugin.id
-            },
-            values: [
-              { path: 'navigation/leewayAngle', value: boatSpeed.angle },
-              { path: 'navigation/speedThroughWaterTransverse', value: boatSpeedVector.y },
             ]
           }]
       };
@@ -522,8 +519,6 @@ module.exports = function (app) {
       app.handleMessage(plugin.id, delta);
     }
 
-
-
     function initSteps(timestamp) {
       return {
         timestamp: timestamp,
@@ -565,12 +560,12 @@ module.exports = function (app) {
       if (unit == 'rad') {
         roll = toDegrees(att.roll);
         pitch = toDegrees(att.pitch);
-        yaw=toDegrees(att.yaw);
+        yaw = toDegrees(att.yaw);
       }
       else {
         roll = att.roll;
         pitch = att.pitch;
-        yaw=att.yaw;
+        yaw = att.yaw;
       }
       calculations.attitudeSteps.push(
         {
